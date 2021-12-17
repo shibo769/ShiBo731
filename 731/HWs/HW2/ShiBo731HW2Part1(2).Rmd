@@ -1,0 +1,100 @@
+---
+title: "ShiBo731HW2Part1(2)"
+author: "Shi Bo"
+date: "2021/9/25"
+output: pdf_document
+---
+# Set parameters
+```{r}
+library(OptionPricing)
+r <- 0.119 / 100
+mu <- 16.91 / 100
+sigma <- 49.07 / 100
+k <- 170
+TT <- 0.292
+delta <- 1/252
+S0 <- 152.51
+t = 0
+K <- 10
+alpha <- .95
+N = 40000
+```
+# Define functions
+```{r}
+require(OptionPricing)
+BS <- BS_EP(TT,k,r,sigma,S0)
+
+bspx <- function(t,x){
+  return(BS_EP(TT-t,k,r,sigma,x)[1])
+}
+bsdelta <- function(t,x){
+  return(BS_EP(TT-t,k,r,sigma,x)[2])
+}
+
+Loss <- function(S0,TT,k,r,mu,sigma,t,delta){
+  BS <- BS_EP(TT,k,r,sigma,S0)
+  S_delta <- S0 * exp((mu - 0.5*sigma^2)*delta + sigma*sqrt(delta)*rnorm(1))
+  putPrice <- BS[1]
+  BS2 <- BS_EP(TT-delta,k,r,sigma,S_delta)
+  put_delta <- BS2[1]
+  h <- BS[2]
+  lss <- h*(S0 - S_delta) - (putPrice - put_delta)
+}
+
+S_est <- function(S0,mu,sigma,t,delta){
+  S_delta <- S0 * exp((mu - 1/2*sigma^2)*delta + sigma * sqrt(delta)* rnorm(1))
+}
+```
+# (1)(2) 1-day VaR and sqrt(10)-VaR
+```{r}
+Lss <- c()
+for(i in 1:N){
+  Lss <- c(Lss,100*Loss(S0,TT,k,r,mu,sigma,t,delta))
+}
+
+VaR_10_sqrt <- sqrt(K) * quantile(Lss,0.95)  # 96
+quantile(Lss,0.95)
+VaR_10_sqrt
+```
+# 10-day VaR
+```{r}
+result <- c()
+for(ii in 1:N){
+  S_K <- c(S0)
+  for(i in 1:K){
+    tmpt <- S_est(S_K[i], mu, sigma, t, delta)
+    S_K <- c(S_K,tmpt)
+  }
+  
+  put_K <- c()
+  for(i in 1:(K+1)){
+    BS <- BS_EP((TT-(i-1)*delta),k,r,sigma,S_K[i])
+    tmpt <- BS[1]
+    put_K <- c(put_K, tmpt) 
+  }
+  
+  h_K <- c()
+  for(i in 1:(K+1)){
+    BS <- BS_EP((TT-(i-1)*delta),k,r,sigma,S_K[i])
+    tmpt <- BS[2]
+    h_K <- c(h_K,tmpt)
+  }
+  
+  Residual_K <- c(0)
+  Value_1 <- h_K[1]*S0 - put_K[1]
+  Value_K <- c(Value_1)
+  Loss_K <- c()
+  for(i in 1:K){
+    tmpt1 <- h_K[i]*S_K[i+1] - put_K[i+1] + Residual_K[i]*exp(r*delta)# for value process
+    
+    Value_K <- c(Value_K,tmpt1)
+    tmpt2 <- Value_K[i+1] - (h_K[i+1]*S_K[i+1] - put_K[i+1]) # for residual 
+    Residual_K <- c(Residual_K, tmpt2)
+    tmpt3 <- Value_K[i]-Value_K[i+1]
+    Loss_K <- c(Loss_K,tmpt3)
+  }
+  result <- c(result,sum(Loss_K))
+}
+100 * quantile(result,0.95) # 88
+```
+
